@@ -1,0 +1,93 @@
+name: Context OS CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Compose configuration
+        env:
+          POSTGRES_PASSWORD: ci-only-not-a-secret
+        run: docker compose config --quiet
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Check frontend formatting
+        working-directory: frontend
+        run: npm run format:check
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+      - name: Type-check frontend
+        working-directory: frontend
+        run: npx tsc --noEmit
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+  python:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v6
+      - name: Install locked dependencies
+        run: uv sync --locked --extra dev
+      - name: Check formatting
+        run: uv run ruff format --check app tests alembic
+      - name: Lint
+        run: uv run ruff check app tests alembic
+      - name: Type check
+        run: uv run mypy
+      - name: Test
+        run: uv run pytest
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: context_os_test
+          POSTGRES_USER: context_os
+          POSTGRES_PASSWORD: ci-only-not-a-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U context_os -d context_os_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      CONTEXT_OS_DATABASE_URL: postgresql+asyncpg://context_os:ci-only-not-a-secret@127.0.0.1:5432/context_os_test
+      CONTEXT_OS_TEST_DATABASE_URL: postgresql+asyncpg://context_os:ci-only-not-a-secret@127.0.0.1:5432/context_os_test
+      CONTEXT_OS_RUN_POSTGRES_INTEGRATION: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v6
+      - name: Install locked dependencies
+        run: uv sync --locked --extra dev
+      - name: Migrate a clean PostgreSQL database
+        run: uv run alembic upgrade head
+      - name: Verify migrations match SQLAlchemy metadata
+        run: uv run alembic check
+      - name: Run PostgreSQL repository integration tests
+        run: uv run pytest tests/integration

@@ -1,0 +1,80 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      CONTEXT_OS_HOST: 127.0.0.1
+      CONTEXT_OS_PORT: "8000"
+      CONTEXT_OS_DATABASE_HOST: db
+      CONTEXT_OS_DATABASE_PORT: "5432"
+      CONTEXT_OS_DATABASE_USER: ${POSTGRES_USER:-context_os}
+      CONTEXT_OS_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Set a local POSTGRES_PASSWORD in .env}
+      CONTEXT_OS_DATABASE_NAME: ${POSTGRES_DB:-context_os}
+      CONTEXT_OS_FRONTEND_ORIGIN: ${CONTEXT_OS_FRONTEND_ORIGIN:-http://127.0.0.1:3000}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${CONTEXT_OS_API_PORT:-8000}:8000"
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_CONTEXT_OS_API_URL: ${NEXT_PUBLIC_CONTEXT_OS_API_URL:-http://127.0.0.1:8000}
+    environment:
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "127.0.0.1:${CONTEXT_OS_FRONTEND_PORT:-3000}:3000"
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000').then((response) => { if (!response.ok) process.exitCode = 1; }).catch(() => { process.exitCode = 1; })"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-context_os}
+      POSTGRES_USER: ${POSTGRES_USER:-context_os}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a local POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${CONTEXT_OS_DB_PORT:-5432}:5432"
+    volumes:
+      - context-os-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  context-os-postgres:
