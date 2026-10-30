@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+import sqlalchemy as sa
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
@@ -780,7 +781,7 @@ class ProviderConsent(Base, Timestamped):
     )
 
 
-class Provider(models.Base):
+class Provider(Base):
     __tablename__ = "providers"
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     provider_type: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -819,7 +820,7 @@ class TemplatePackVersion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-class Requirement(models.Base):
+class Requirement(Base):
     __tablename__ = "requirements"
     __table_args__ = (
         UniqueConstraint("workspace_id", "project_id", "id", name="uq_requirements_scope_id"),
