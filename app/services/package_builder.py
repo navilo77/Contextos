@@ -16,7 +16,7 @@ from app.models import GeneratedDocuments, ProjectContext, ProjectIdentity
 PackageProfile = Literal["compact", "detailed"]
 
 MARKER_PATTERN = re.compile(
-    r"\{\{[^{}]+\}\}|\[(?:TODO|TBD|PLACEHOLDER)\]|^\s*(?:TODO|TBD)\s*:",
+    r"\{\{[^{}]+\}\}|\[(?:TBD|PLACEHOLDER)\]|^\s*(?:TBD)\s*:",
     re.MULTILINE,
 )
 SECRET_PATTERNS = (

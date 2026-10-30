@@ -4,11 +4,6 @@ from app.db.repositories.decisions import (
     get_decision,
     set_decision_status,
 )
-from app.db.repositories.decisions import (
-    ALLOWED_DECISION_ACTORS,
-    get_decision,
-    set_decision_status,
-)
 from app.db.repositories.errors import (
     ActiveTransactionRequiredError,
     IdempotencyConflictError,
